@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import {
-  APPROVED_WORDS,
   END_CHOICE,
+  NONE_CHOICE,
   MAX_CHARACTER_REPLY_LENGTH,
   MAX_REPLY_WORDS,
   buildNextCharacterRequest,
-  buildNextWordRequest,
+  buildNextWordFinalRequest,
+  buildNextWordTournamentRequest,
   buildVocabularyRequest,
   findDynamicCandidates,
   isNumericCandidate,
@@ -180,12 +181,28 @@ export async function POST(request: Request) {
       .map(({ word }) => word);
     const words: string[] = [];
     const decisions: JevDecision[] = [];
-    const allowed = new Set<string>([...APPROVED_WORDS, ...dynamicWords, END_CHOICE]);
 
     for (let step = 1; step <= MAX_REPLY_WORDS; step += 1) {
-      const jevRequest = buildNextWordRequest(body.messages, words, dynamicWords);
+      const tournamentRequest = buildNextWordTournamentRequest(body.messages, words, dynamicWords);
+      const tournamentResponse = await askJev(apiKey, tournamentRequest);
+      const finalists = [...new Set(Object.keys(tournamentRequest.questions).flatMap((questionId) => {
+        const answer = tournamentResponse.answers?.[questionId];
+        if (!answer || answer.type !== 'choice') return [];
+        return Object.entries(answer.probabilities)
+          .filter(([word, probability]) => word !== NONE_CHOICE && probability > 0)
+          .sort(([, probabilityA], [, probabilityB]) => probabilityB - probabilityA)
+          .slice(0, 2)
+          .map(([word]) => word);
+      }))];
+      const jevRequest = buildNextWordFinalRequest(
+        body.messages,
+        words,
+        finalists,
+        dynamicWords,
+      );
       const response = await askJev(apiKey, jevRequest);
       const answer = response.answers?.next_word;
+      const allowed = new Set<string>([...finalists, END_CHOICE]);
 
       if (!answer || answer.type !== 'choice' || !allowed.has(answer.choice)) {
         throw new Error('Jev returned an invalid next-word choice.');

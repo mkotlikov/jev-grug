@@ -2,7 +2,7 @@
 
 > tiny vocabulary. big thought.
 
-A playful, in-browser chatbot that turns [TypeSafe AI's Jev](https://typesafe.ai/blog/introducing-system-one-models-and-jev) into a deliberately tiny "language model." Grug can only reply by repeatedly choosing the next word from a fixed vocabulary.
+[TypeSafe says Jev isn't an LLM](https://docs.typesafe.ai/concepts/system-one). Let's talk to it anyway. Grug is a tiny cave-chat experiment that makes Jev hold a conversation by repeatedly choosing its next word from a compact vocabulary. What could grug wrong?
 
 The demo now connects to the real Jev API when `TYPESAFE_API_KEY` is configured. Without a key it falls back to a deterministic mock, so contributors can still run the interface immediately.
 
@@ -10,7 +10,7 @@ The demo now connects to the real Jev API when `TYPESAFE_API_KEY` is configured.
 
 Jev is TypeSafe AI's first *System One* model. Unlike a large language model, it does not generate arbitrary text. You provide a `state` plus one or more typed questions, and it returns structured answers that code can use directly.
 
-This demo uses the [`choice`](https://docs.typesafe.ai/primitives/choice) primitive: one answer is selected from options defined in advance, accompanied by a probability distribution and confidence value. In the real API, all questions in one request are evaluated independently and in parallel. Grug intentionally makes one sequential request per word, so this is a toy inversion of Jev's intended use—not a recommended production chatbot architecture.
+This demo uses the [`choice`](https://docs.typesafe.ai/primitives/choice) primitive: one answer is selected from options defined in advance, accompanied by a probability distribution and confidence value. In the real API, all questions in one request are evaluated independently and in parallel. Grug intentionally runs a grouped tournament for every sequential word, so this is a toy inversion of Jev's intended use—not a recommended production chatbot architecture.
 
 ```text
 conversation + words so far
@@ -68,8 +68,8 @@ npm run build
 
 ## How it works
 
-- Keeps the approved vocabulary and request builder in [`lib/jev.ts`](./lib/jev.ts).
-- Sends one Jev Choice request per word through the server-only `/api/chat` route.
+- Keeps a compact 979-word vocabulary in [`lib/core-vocabulary.ts`](./lib/core-vocabulary.ts), with request builders in [`lib/jev.ts`](./lib/jev.ts).
+- Gives every eligible word a chance through parallel groups of at most 249 options, then asks Jev to choose among each group’s strongest finalists or `end`.
 - Carries the conversation and `words_so_far` forward as structured state.
 - Extracts candidate names, numbers, and terms from user messages, then batches one Jev Noul judgment per non-numeric candidate to decide which words join the conversation vocabulary.
 - Always admits numeric tokens and displays accepted and rejected conversation words in the inspector.
@@ -77,7 +77,7 @@ npm run build
 - Withholds the three most recent words and words already used twice to prevent repetition loops.
 - Validates every returned choice and retries documented `429` and `529` failures.
 - Shows Jev's real probabilities and confidence in the inspector.
-- Offers an ABC mode where Jev selects one printable ASCII character at a time from space through `~`, plus the separate `end` end-of-transmission control.
+- Offers an ABC mode where Jev selects one character at a time from lowercase `a-z`, `0-9`, apostrophe, space, `?`, and `.`, plus the separate `end` end-of-transmission control.
 - Falls back to [`lib/mock-jev.ts`](./lib/mock-jev.ts) only when no key is configured.
 - Exposes the same chat action through the experimental WebMCP browser interface when available.
 
@@ -102,6 +102,7 @@ app/
   globals.css      visual system and responsive layout
   api/chat/route.ts server-only Jev request loop and mock fallback
 lib/
+  core-vocabulary.ts compact common-English vocabulary
   jev.ts           vocabulary, shared types, and Choice request builder
   mock-jev.ts      deterministic fallback decisions
 types/

@@ -193,7 +193,7 @@ export default function Home() {
           <div className="intro">
             <p className="eyebrow"><Sparkles size={14} /> TINY VOCABULARY. BIG THOUGHT.</p>
             <h1>Chat with <span>grug.</span></h1>
-            <p>A toy chatbot that asks Jev to pick the next word from a very small, very grug-approved list.</p>
+            <p>TypeSafe says Jev isn&apos;t an LLM. Let&apos;s talk to it anyway. What could grug wrong?</p>
           </div>
 
           <div className="messages" aria-live="polite">
@@ -274,9 +274,9 @@ export default function Home() {
           </div>
           <div className="explain-card">
             {abcMode ? (
-              <><code>state + choice → character</code><p>Each step chooses one printable ASCII character. <b>END</b> is the end-of-transmission control and is not printed.</p></>
+              <><code>state + choice → character</code><p>Each step chooses a lowercase letter, digit, apostrophe, space, question mark, or period. <b>END</b> is the end-of-transmission control and is not printed.</p></>
             ) : (
-              <><code>prompt → noul → vocab<br />state + choice → word</code><p>Jev first admits useful prompt terms into this chat’s vocabulary. Numbers always enter. Then each step chooses one word—or <b>END</b>.</p></>
+              <><code>prompt → noul → vocab<br />groups → finalists → word</code><p>Jev first admits useful prompt terms. Then every eligible core word enters a grouped tournament, and Jev chooses among the finalists—or <b>END</b>.</p></>
             )}
           </div>
 
@@ -294,7 +294,7 @@ export default function Home() {
           </section>}
 
           <section className="trace-section">
-            <div className="section-title"><h3>Latest trace</h3><span>{trace.length} calls</span></div>
+            <div className="section-title"><h3>Latest trace</h3><span>{trace.length} choices</span></div>
             <div className="trace-list">
               {trace.length ? trace.slice(-5).reverse().map((decision) => (
                 <ProbabilityBar decision={decision} key={decision.step} />

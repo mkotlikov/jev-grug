@@ -1,4 +1,6 @@
-export const APPROVED_WORDS = [
+import { CORE_WORDS } from '@/lib/core-vocabulary';
+
+const GRUG_WORDS = [
   'grug', 'human', 'code', 'thing', 'good', 'bad', 'big', 'small', 'simple',
   'complex', 'make', 'use', 'need', 'want', 'know', 'think', 'try', 'fix',
   'break', 'ship', 'work', 'slow', 'fast', 'more', 'less', 'one', 'few',
@@ -30,13 +32,17 @@ export const APPROVED_WORDS = [
   '13', '14', '15', '16', '17', '18', '19', '20',
 ] as const;
 
+export const APPROVED_WORDS = [...new Set<string>([
+  ...CORE_WORDS.filter((word) => word !== 'end'),
+  ...GRUG_WORDS,
+])];
+
 export const END_CHOICE = 'end';
+export const NONE_CHOICE = '__none__';
 export const MAX_REPLY_WORDS = 18;
+export const MAX_WORDS_PER_CHOICE = 249;
 export const MAX_CHARACTER_REPLY_LENGTH = 64;
-export const ASCII_CHARACTERS = Array.from(
-  { length: 95 },
-  (_, index) => String.fromCharCode(32 + index),
-);
+export const ASCII_CHARACTERS = Array.from("abcdefghijklmnopqrstuvwxyz0123456789' ?.");
 
 export type GenerationMode = 'word' | 'abc';
 
@@ -184,6 +190,84 @@ export function buildNextWordRequest(
   };
 }
 
+function availableReplyWords(wordsSoFar: string[], dynamicWords: string[]) {
+  const recentWords = new Set(wordsSoFar.slice(-3));
+  const wordCounts = new Map<string, number>();
+  wordsSoFar.forEach((word) => wordCounts.set(word, (wordCounts.get(word) ?? 0) + 1));
+  return [...new Set<string>([...APPROVED_WORDS, ...dynamicWords])]
+    .filter((word) => word !== END_CHOICE && word !== NONE_CHOICE)
+    .filter((word) => !recentWords.has(word) && (wordCounts.get(word) ?? 0) < 2);
+}
+
+export function buildNextWordTournamentRequest(
+  conversation: Message[],
+  wordsSoFar: string[],
+  dynamicWords: string[] = [],
+) {
+  const words = availableReplyWords(wordsSoFar, dynamicWords);
+  const groups = Array.from(
+    { length: Math.ceil(words.length / MAX_WORDS_PER_CHOICE) },
+    (_, index) => words.slice(index * MAX_WORDS_PER_CHOICE, (index + 1) * MAX_WORDS_PER_CHOICE),
+  );
+  const questions = Object.fromEntries(groups.map((group, index) => [
+    `word_group_${index}`,
+    {
+      type: 'choice' as const,
+      instructions: [
+        'Choose the best next word from this candidate group for the assistant named Grug.',
+        'Grug gives a useful, direct answer with primitive caveman grammar.',
+        'Continue naturally from `words_so_far` and answer the latest user message in `conversation`.',
+        `Choose ${NONE_CHOICE} when no word in this group is a good continuation.`,
+      ].join(' '),
+      criteria: Object.fromEntries([
+        ...group.map((word) => [word, null] as const),
+        [NONE_CHOICE, 'No word in this group is a useful next word.'],
+      ]),
+    },
+  ]));
+
+  return {
+    state: {
+      conversation: conversation.slice(-8),
+      words_so_far: [...wordsSoFar],
+      conversation_vocabulary: [...dynamicWords],
+    },
+    model: 'jev-latest' as const,
+    questions,
+  };
+}
+
+export function buildNextWordFinalRequest(
+  conversation: Message[],
+  wordsSoFar: string[],
+  finalists: string[],
+  dynamicWords: string[] = [],
+): JevChoiceRequest {
+  return {
+    state: {
+      conversation: conversation.slice(-8),
+      words_so_far: [...wordsSoFar],
+      conversation_vocabulary: [...dynamicWords],
+    },
+    model: 'jev-latest',
+    questions: {
+      next_word: {
+        type: 'choice',
+        instructions: [
+          'Choose the single best next word for the assistant named Grug from the tournament finalists.',
+          'Grug gives useful, direct answers using primitive caveman grammar.',
+          'Continue naturally from `words_so_far` and answer the latest user message in `conversation`.',
+          'Choose `end` when the reply is complete. Prefer a short reply and choose `end` by 18 words.',
+        ].join(' '),
+        criteria: Object.fromEntries([
+          ...finalists.map((word) => [word, null] as const),
+          [END_CHOICE, 'The reply is complete and should stop now.'],
+        ]),
+      },
+    },
+  };
+}
+
 export function buildNextCharacterRequest(
   conversation: Message[],
   charactersSoFar: string[],
@@ -233,7 +317,7 @@ export function buildNextCharacterRequest(
           'Choose exactly one next character for the assistant named Grug.',
           '`characters_so_far` is the exact reply prefix already emitted. Select only the single character that immediately follows it; never restart or echo the prefix.',
           'Continue one coherent, useful, direct reply to the latest user message in `conversation`.',
-          'Every printable ASCII character is available, including uppercase and lowercase letters, digits, space, punctuation, and symbols.',
+          'The available characters are lowercase a through z, digits 0 through 9, apostrophe, space, question mark, and period.',
           'Characters listed in `blocked_characters` are temporarily unavailable because code detected a repetition loop.',
           'Choose `end` only as the end-of-transmission control when the reply is complete; do not spell the control word into the reply.',
           'If the reply is complete or you are stuck, choose `end` instead of filler. Prefer a concise reply and choose `end` by 64 characters.',
