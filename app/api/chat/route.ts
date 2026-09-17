@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import {
   APPROVED_WORDS,
-  ASCII_CHARACTERS,
   END_CHOICE,
   MAX_CHARACTER_REPLY_LENGTH,
   MAX_REPLY_WORDS,
@@ -117,10 +116,11 @@ export async function POST(request: Request) {
     if (generationMode === 'abc') {
       const characters: string[] = [];
       const decisions: JevDecision[] = [];
-      const allowed = new Set<string>([...ASCII_CHARACTERS, END_CHOICE]);
 
       for (let step = 1; step <= MAX_CHARACTER_REPLY_LENGTH; step += 1) {
-        const response = await askJev(apiKey, buildNextCharacterRequest(body.messages, characters));
+        const jevRequest = buildNextCharacterRequest(body.messages, characters);
+        const allowed = new Set(Object.keys(jevRequest.questions.next_word.criteria));
+        const response = await askJev(apiKey, jevRequest);
         const answer = response.answers?.next_word;
         if (!answer || answer.type !== 'choice' || !allowed.has(answer.choice)) {
           throw new Error('Jev returned an invalid next-character choice.');

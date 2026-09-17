@@ -62,6 +62,7 @@ export type JevCharacterRequest = {
   state: {
     conversation: Message[];
     characters_so_far: string;
+    blocked_characters: string[];
   };
   model: 'jev-latest';
   questions: JevChoiceRequest['questions'];
@@ -187,18 +188,42 @@ export function buildNextCharacterRequest(
   conversation: Message[],
   charactersSoFar: string[],
 ): JevCharacterRequest {
+  const blockedCharacters = new Set<string>();
+  const textSoFar = charactersSoFar.join('');
+  const lastCharacter = charactersSoFar.at(-1);
+
+  // Jev chooses from only the criteria we provide. Temporarily removing a
+  // repeated character makes it impossible for a low-confidence choice to
+  // turn into an endless "HHHH..."-style run.
+  if (lastCharacter === ' ' || (lastCharacter && charactersSoFar.at(-2) === lastCharacter)) {
+    blockedCharacters.add(lastCharacter);
+  }
+
+  // Also interrupt short loops such as "ha ha ha" or "abcabcabc" while
+  // leaving ordinary doubled punctuation and letters available.
+  for (let patternLength = 2; patternLength <= 4; patternLength += 1) {
+    const repeatedLength = patternLength * 3;
+    if (textSoFar.length < repeatedLength) continue;
+    const tail = textSoFar.slice(-repeatedLength);
+    const pattern = tail.slice(0, patternLength);
+    if (tail === pattern.repeat(3)) blockedCharacters.add(pattern[0]);
+  }
+
   const criteria = Object.fromEntries([
-    ...ASCII_CHARACTERS.map((character) => [
-      character,
-      character === ' ' ? 'A space between words.' : `The printable ASCII character ${JSON.stringify(character)}.`,
-    ] as const),
+    ...ASCII_CHARACTERS
+      .filter((character) => !blockedCharacters.has(character))
+      .map((character) => [
+        character,
+        character === ' ' ? 'A space between words.' : `The printable ASCII character ${JSON.stringify(character)}.`,
+      ] as const),
     [END_CHOICE, 'End of transmission. The reply is complete and no more characters should be sent.'],
   ]);
 
   return {
     state: {
       conversation: conversation.slice(-8),
-      characters_so_far: charactersSoFar.join(''),
+      characters_so_far: textSoFar,
+      blocked_characters: [...blockedCharacters],
     },
     model: 'jev-latest',
     questions: {
@@ -206,10 +231,12 @@ export function buildNextCharacterRequest(
         type: 'choice',
         instructions: [
           'Choose exactly one next character for the assistant named Grug.',
-          'Continue the useful, direct reply to the latest user message from `characters_so_far`.',
+          '`characters_so_far` is the exact reply prefix already emitted. Select only the single character that immediately follows it; never restart or echo the prefix.',
+          'Continue one coherent, useful, direct reply to the latest user message in `conversation`.',
           'Every printable ASCII character is available, including uppercase and lowercase letters, digits, space, punctuation, and symbols.',
+          'Characters listed in `blocked_characters` are temporarily unavailable because code detected a repetition loop.',
           'Choose `end` only as the end-of-transmission control when the reply is complete; do not spell the control word into the reply.',
-          'Prefer a concise reply and choose `end` by 64 characters.',
+          'If the reply is complete or you are stuck, choose `end` instead of filler. Prefer a concise reply and choose `end` by 64 characters.',
         ].join(' '),
         criteria,
       },

@@ -76,9 +76,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .intro > p:last-child { max-width: 610px; color: var(--muted); font-size: clamp(1rem, 1.6vw, 1.22rem); line-height: 1.55; margin: 1.35rem 0 0; }
 
 .messages { width: 100%; max-width: 760px; margin: 0 auto; flex: 1; }
-.message { margin: 0 0 1.6rem; display: grid; grid-template-columns: 62px 1fr; align-items: start; }
+.message { min-width: 0; margin: 0 0 1.6rem; display: grid; grid-template-columns: 62px minmax(0, 1fr); align-items: start; }
 .message__label { color: #787b6c; font: 700 .7rem var(--font-mono-custom); letter-spacing: .12em; padding-top: .35rem; }
-.message p { margin: 0; font-size: clamp(1rem, 1.4vw, 1.1rem); line-height: 1.65; color: #e7e4d9; }
+.message p { min-width: 0; margin: 0; overflow-wrap: anywhere; font-size: clamp(1rem, 1.4vw, 1.1rem); line-height: 1.65; color: #e7e4d9; }
 .message--user p { padding: .9rem 1rem; border: 1px solid #3b3f32; background: #1b1d17; border-radius: .2rem 1rem 1rem 1rem; }
 .message--grug .message__label { color: var(--acid); }
 .message--grug p { font-weight: 630; }
