@@ -1,5 +1,6 @@
 import {
   APPROVED_WORDS,
+  ASCII_CHARACTERS,
   END_CHOICE,
   type JevDecision,
   type Message,
@@ -63,8 +64,8 @@ function cleanToken(token: string) {
   return token.toLowerCase().replace(/[^\p{L}\p{N}'-]/gu, '');
 }
 
-function makeDistribution(choice: string, seed: number) {
-  const distractors = APPROVED_WORDS
+function makeDistribution(choice: string, seed: number, pool: readonly string[] = APPROVED_WORDS) {
+  const distractors = pool
     .filter((word) => word !== choice)
     .sort((a, b) => hash(`${seed}-${a}`) - hash(`${seed}-${b}`))
     .slice(0, 4);
@@ -98,4 +99,17 @@ export function createMockReply(prompt: string, history: Message[], dynamicWords
   });
 
   return { text: reply, decisions };
+}
+
+export function createMockCharacterReply(prompt: string, history: Message[]) {
+  const wordReply = createMockReply(prompt, history);
+  const seed = hash(`${prompt}:${history.length}:abc`);
+  const choices = [...wordReply.text.split(''), END_CHOICE];
+  const decisions = choices.map((choice, index) => ({
+    step: index + 1,
+    choice,
+    ...makeDistribution(choice, seed + index * 97, ASCII_CHARACTERS),
+  }));
+
+  return { text: wordReply.text, decisions };
 }

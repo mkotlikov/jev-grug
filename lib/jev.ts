@@ -32,6 +32,13 @@ export const APPROVED_WORDS = [
 
 export const END_CHOICE = 'end';
 export const MAX_REPLY_WORDS = 18;
+export const MAX_CHARACTER_REPLY_LENGTH = 64;
+export const ASCII_CHARACTERS = Array.from(
+  { length: 95 },
+  (_, index) => String.fromCharCode(32 + index),
+);
+
+export type GenerationMode = 'word' | 'abc';
 
 export type Message = { role: 'user' | 'grug'; text: string };
 
@@ -49,6 +56,15 @@ export type JevChoiceRequest = {
       criteria: Record<string, string | null>;
     };
   };
+};
+
+export type JevCharacterRequest = {
+  state: {
+    conversation: Message[];
+    characters_so_far: string;
+  };
+  model: 'jev-latest';
+  questions: JevChoiceRequest['questions'];
 };
 
 export type JevDecision = {
@@ -165,4 +181,42 @@ export function buildNextWordRequest(
       },
     },
   };
+}
+
+export function buildNextCharacterRequest(
+  conversation: Message[],
+  charactersSoFar: string[],
+): JevCharacterRequest {
+  const criteria = Object.fromEntries([
+    ...ASCII_CHARACTERS.map((character) => [
+      character,
+      character === ' ' ? 'A space between words.' : `The printable ASCII character ${JSON.stringify(character)}.`,
+    ] as const),
+    [END_CHOICE, 'End of transmission. The reply is complete and no more characters should be sent.'],
+  ]);
+
+  return {
+    state: {
+      conversation: conversation.slice(-8),
+      characters_so_far: charactersSoFar.join(''),
+    },
+    model: 'jev-latest',
+    questions: {
+      next_word: {
+        type: 'choice',
+        instructions: [
+          'Choose exactly one next character for the assistant named Grug.',
+          'Continue the useful, direct reply to the latest user message from `characters_so_far`.',
+          'Every printable ASCII character is available, including uppercase and lowercase letters, digits, space, punctuation, and symbols.',
+          'Choose `end` only as the end-of-transmission control when the reply is complete; do not spell the control word into the reply.',
+          'Prefer a concise reply and choose `end` by 64 characters.',
+        ].join(' '),
+        criteria,
+      },
+    },
+  };
+}
+
+export function displayCharacter(character: string) {
+  return character === ' ' ? 'SPACE' : character;
 }

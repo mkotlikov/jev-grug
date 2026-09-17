@@ -77,6 +77,7 @@ npm run build
 - Withholds the three most recent words and words already used twice to prevent repetition loops.
 - Validates every returned choice and retries documented `429` and `529` failures.
 - Shows Jev's real probabilities and confidence in the inspector.
+- Offers an ABC mode where Jev selects one printable ASCII character at a time from space through `~`, plus the separate `end` end-of-transmission control.
 - Falls back to [`lib/mock-jev.ts`](./lib/mock-jev.ts) only when no key is configured.
 - Exposes the same chat action through the experimental WebMCP browser interface when available.
 
