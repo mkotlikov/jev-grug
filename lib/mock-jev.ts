@@ -19,14 +19,26 @@ const PATTERNS: Pattern[] = [
     'first know what human need. then use few code and ship.',
   ] },
   { when: /ai|artificial|jev|model|intelligence/i, replies: [
-    'smart thing pick word. then pick more word. grug is many choice in club.',
+    'artificial intelligence is machine use data and pattern to learn, choose, and decide.',
     'jev not make word. jev choose one thing. grug ask again and again.',
+  ] },
+  { when: /meaning|life|deep/i, replies: [
+    'life meaning is what human choose. love people, help, learn, and make good thing.',
+  ] },
+  { when: /rain|weather|tuesday|forecast/i, replies: [
+    'grug not know future weather. check forecast for tuesday.',
+  ] },
+  { when: /hungry|food|eat/i, replies: [
+    'no. grug is machine. grug not eat food.',
+  ] },
+  { when: /feel|feeling|happy|sad|angry|tired/i, replies: [
+    'grug not have real feeling. but grug is curious and happy to help.',
   ] },
   { when: /bug|error|broken|fix|problem/i, replies: [
     'first know small problem. then fix one thing. try again. no big club.',
     'problem is thing that not work. make problem small. then fix.',
   ] },
-  { when: /hello|hi|hey|who are/i, replies: ['grug here. grug small word machine. what human need?'] },
+  { when: /hello|hi|hey|who are/i, replies: ['hello human. grug here. what do you need?'] },
   { when: /should|do i|advice|help/i, replies: [
     'maybe. first ask why. if thing need work, make simple thing. then try.',
     'grug think yes, but small first. use rock before big club.',

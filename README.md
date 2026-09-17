@@ -72,6 +72,7 @@ npm run build
 - Sends one Jev Choice request per word through the server-only `/api/chat` route.
 - Carries the conversation and `words_so_far` forward as structured state.
 - Stops when Jev chooses the dedicated `end` control option or after 18 words.
+- Withholds the three most recent words and words already used twice to prevent repetition loops.
 - Validates every returned choice and retries documented `429` and `529` failures.
 - Shows Jev's real probabilities and confidence in the inspector.
 - Falls back to [`lib/mock-jev.ts`](./lib/mock-jev.ts) only when no key is configured.
