@@ -1,0 +1,89 @@
+import {
+  APPROVED_WORDS,
+  END_CHOICE,
+  type JevDecision,
+  type Message,
+} from './jev';
+
+export type MockDecision = JevDecision;
+
+type Pattern = { when: RegExp; replies: string[] };
+
+const PATTERNS: Pattern[] = [
+  { when: /refactor|rewrite|architecture|framework/i, replies: [
+    'if code work, no break code. make small fix first. ship now.',
+    'complex thing feel smart but simple thing work. use less code.',
+  ] },
+  { when: /ship|fast|faster|speed|deadline/i, replies: [
+    'make small thing. try thing. if good, ship now. more later.',
+    'first know what human need. then use few code and ship.',
+  ] },
+  { when: /ai|artificial|jev|model|intelligence/i, replies: [
+    'smart thing pick word. then pick more word. grug is many choice in club.',
+    'jev not make word. jev choose one thing. grug ask again and again.',
+  ] },
+  { when: /bug|error|broken|fix|problem/i, replies: [
+    'first know small problem. then fix one thing. try again. no big club.',
+    'problem is thing that not work. make problem small. then fix.',
+  ] },
+  { when: /hello|hi|hey|who are/i, replies: ['grug here. grug small word machine. what human need?'] },
+  { when: /should|do i|advice|help/i, replies: [
+    'maybe. first ask why. if thing need work, make simple thing. then try.',
+    'grug think yes, but small first. use rock before big club.',
+  ] },
+  { when: /.*/i, replies: [
+    'grug think thing is complex. make thing small. then know what to do.',
+    'human ask big question. grug have few word. simple answer: try small thing first.',
+    'maybe yes. maybe no. know by make small thing and try.',
+  ] },
+];
+
+function hash(value: string) {
+  let result = 2166136261;
+  for (let i = 0; i < value.length; i += 1) {
+    result ^= value.charCodeAt(i);
+    result = Math.imul(result, 16777619);
+  }
+  return Math.abs(result >>> 0);
+}
+
+function cleanToken(token: string) {
+  return token.toLowerCase().replace(/[^a-z<>]/g, '');
+}
+
+function makeDistribution(choice: string, seed: number) {
+  const distractors = APPROVED_WORDS
+    .filter((word) => word !== choice)
+    .sort((a, b) => hash(`${seed}-${a}`) - hash(`${seed}-${b}`))
+    .slice(0, 4);
+  const certainty = .56 + (seed % 31) / 100;
+  const remaining = 1 - certainty;
+  const raw = distractors.map((_, index) => (distractors.length - index) * (1 + ((seed >> index) % 4)));
+  const total = raw.reduce((sum, value) => sum + value, 0);
+  const probabilities: Record<string, number> = { [choice]: certainty };
+  distractors.forEach((word, index) => {
+    probabilities[word] = Number((remaining * raw[index] / total).toFixed(3));
+  });
+  return { probabilities, confidence: Math.min(.96, certainty + .08) };
+}
+
+export function createMockReply(prompt: string, history: Message[]) {
+  const pattern = PATTERNS.find((entry) => entry.when.test(prompt)) ?? PATTERNS[PATTERNS.length - 1];
+  const seed = hash(`${prompt}:${history.length}`);
+  const reply = pattern.replies[seed % pattern.replies.length];
+  const tokens = reply.split(/\s+/).map(cleanToken).filter(Boolean);
+  const choices = [...tokens, END_CHOICE];
+  const allowed = new Set<string>(APPROVED_WORDS);
+  const unknown = tokens.filter((token) => !allowed.has(token));
+  if (unknown.length) throw new Error(`Mock reply used unapproved words: ${unknown.join(', ')}`);
+
+  const decisions = choices.map((choice, index) => {
+    return {
+      step: index + 1,
+      choice,
+      ...makeDistribution(choice, seed + index * 97),
+    };
+  });
+
+  return { text: reply, decisions };
+}
