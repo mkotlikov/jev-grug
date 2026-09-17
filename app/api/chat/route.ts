@@ -3,9 +3,13 @@ import {
   APPROVED_WORDS,
   END_CHOICE,
   MAX_REPLY_WORDS,
+  buildVocabularyRequest,
   buildNextWordRequest,
+  findDynamicCandidates,
+  isNumericCandidate,
   type JevDecision,
   type Message,
+  type VocabularyDecision,
 } from '@/lib/jev';
 import { createMockReply } from '@/lib/mock-jev';
 
@@ -16,8 +20,19 @@ type ChoiceAnswer = {
   confidence: number;
 };
 
+type NoulAnswer = {
+  type: 'noul';
+  noul: number;
+};
+
 type SystemOneResponse = {
-  answers?: { next_word?: ChoiceAnswer };
+  answers?: Record<string, ChoiceAnswer | NoulAnswer>;
+};
+
+type SystemOneRequest = {
+  state: unknown;
+  model: 'jev-latest';
+  questions: Record<string, unknown>;
 };
 
 function validMessages(value: unknown): value is Message[] {
@@ -28,7 +43,7 @@ function validMessages(value: unknown): value is Message[] {
   ));
 }
 
-async function askJev(apiKey: string, body: ReturnType<typeof buildNextWordRequest>) {
+async function askJev(apiKey: string, body: SystemOneRequest) {
   let lastError = 'Jev request failed.';
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -61,18 +76,57 @@ export async function POST(request: Request) {
     }
 
     const apiKey = process.env.TYPESAFE_API_KEY;
+    const candidates = findDynamicCandidates(body.messages);
     if (!apiKey) {
       const lastPrompt = body.messages.at(-1)?.text ?? '';
-      const result = createMockReply(lastPrompt, body.messages);
-      return NextResponse.json({ ...result, mode: 'mock' as const });
+      const vocabularyDecisions: VocabularyDecision[] = candidates.map((word) => ({
+        word,
+        probability: 1,
+        accepted: true,
+        source: isNumericCandidate(word) ? 'number' : 'mock',
+      }));
+      const dynamicWords = vocabularyDecisions.map(({ word }) => word);
+      const result = createMockReply(lastPrompt, body.messages, dynamicWords);
+      return NextResponse.json({ ...result, dynamicWords, vocabularyDecisions, mode: 'mock' as const });
     }
 
+    const numberWords = candidates.filter(isNumericCandidate);
+    const judgedCandidates = candidates.filter((word) => !isNumericCandidate(word));
+    const vocabularyDecisions: VocabularyDecision[] = numberWords.map((word) => ({
+      word,
+      probability: 1,
+      accepted: true,
+      source: 'number',
+    }));
+
+    if (judgedCandidates.length) {
+      const vocabularyResponse = await askJev(
+        apiKey,
+        buildVocabularyRequest(body.messages, judgedCandidates),
+      );
+      judgedCandidates.forEach((word, index) => {
+        const answer = vocabularyResponse.answers?.[`word_${index}`];
+        if (!answer || answer.type !== 'noul' || !Number.isFinite(answer.noul)) {
+          throw new Error('Jev returned an invalid vocabulary decision.');
+        }
+        vocabularyDecisions.push({
+          word,
+          probability: answer.noul,
+          accepted: answer.noul >= .5,
+          source: 'jev',
+        });
+      });
+    }
+
+    const dynamicWords = vocabularyDecisions
+      .filter(({ accepted }) => accepted)
+      .map(({ word }) => word);
     const words: string[] = [];
     const decisions: JevDecision[] = [];
-    const allowed = new Set<string>([...APPROVED_WORDS, END_CHOICE]);
+    const allowed = new Set<string>([...APPROVED_WORDS, ...dynamicWords, END_CHOICE]);
 
     for (let step = 1; step <= MAX_REPLY_WORDS; step += 1) {
-      const jevRequest = buildNextWordRequest(body.messages, words);
+      const jevRequest = buildNextWordRequest(body.messages, words, dynamicWords);
       const response = await askJev(apiKey, jevRequest);
       const answer = response.answers?.next_word;
 
@@ -93,7 +147,13 @@ export async function POST(request: Request) {
 
     const completed = decisions.at(-1)?.choice === END_CHOICE;
     const text = words.length ? `${words.join(' ')}${completed ? '.' : '…'}` : '…';
-    return NextResponse.json({ text, decisions, mode: 'jev' as const });
+    return NextResponse.json({
+      text,
+      decisions,
+      dynamicWords,
+      vocabularyDecisions,
+      mode: 'jev' as const,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Grug could not reach Jev.';
     return NextResponse.json({ error: message }, { status: 502 });

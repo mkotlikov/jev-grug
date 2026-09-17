@@ -133,6 +133,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .empty-trace p { font-size: .78rem; margin: .65rem 0 0; }
 .word-cloud { display: flex; flex-wrap: wrap; gap: .4rem; }
 .word-cloud span { border: 1px solid #34382c; color: #8e9280; background: #1c1f18; padding: .32rem .46rem; border-radius: .3rem; font: .67rem var(--font-mono-custom); }
+.word-cloud--dynamic span { display: inline-flex; align-items: center; gap: .38rem; }
+.word-cloud--dynamic span.accepted { border-color: rgba(217,255,85,.38); color: var(--acid); background: rgba(217,255,85,.06); }
+.word-cloud--dynamic span.rejected { opacity: .45; text-decoration: line-through; }
+.word-cloud--dynamic small { color: #777b6b; font: .58rem var(--font-mono-custom); text-decoration: none; }
+.vocabulary-empty { margin: 0; color: #777b6b; font-size: .76rem; line-height: 1.5; }
 
 footer { border-top: 1px solid var(--border); padding: 1.5rem clamp(1rem,4vw,3.5rem); display: flex; justify-content: space-between; gap: 1rem; color: #737767; font-size: .75rem; }
 footer p { margin: 0; }

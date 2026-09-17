@@ -60,7 +60,7 @@ function hash(value: string) {
 }
 
 function cleanToken(token: string) {
-  return token.toLowerCase().replace(/[^a-z<>]/g, '');
+  return token.toLowerCase().replace(/[^\p{L}\p{N}'-]/gu, '');
 }
 
 function makeDistribution(choice: string, seed: number) {
@@ -79,13 +79,13 @@ function makeDistribution(choice: string, seed: number) {
   return { probabilities, confidence: Math.min(.96, certainty + .08) };
 }
 
-export function createMockReply(prompt: string, history: Message[]) {
+export function createMockReply(prompt: string, history: Message[], dynamicWords: string[] = []) {
   const pattern = PATTERNS.find((entry) => entry.when.test(prompt)) ?? PATTERNS[PATTERNS.length - 1];
   const seed = hash(`${prompt}:${history.length}`);
   const reply = pattern.replies[seed % pattern.replies.length];
   const tokens = reply.split(/\s+/).map(cleanToken).filter(Boolean);
   const choices = [...tokens, END_CHOICE];
-  const allowed = new Set<string>(APPROVED_WORDS);
+  const allowed = new Set<string>([...APPROVED_WORDS, ...dynamicWords]);
   const unknown = tokens.filter((token) => !allowed.has(token));
   if (unknown.length) throw new Error(`Mock reply used unapproved words: ${unknown.join(', ')}`);
 

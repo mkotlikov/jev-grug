@@ -4,11 +4,19 @@ import { type BaseSyntheticEvent, useCallback, useEffect, useRef, useState } fro
 import { ArrowUp, RotateCcw, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { APPROVED_WORDS, END_CHOICE, type JevDecision, type Message } from '@/lib/jev';
+import {
+  APPROVED_WORDS,
+  END_CHOICE,
+  type JevDecision,
+  type Message,
+  type VocabularyDecision,
+} from '@/lib/jev';
 
 type ChatResponse = {
   text: string;
   decisions: JevDecision[];
+  dynamicWords: string[];
+  vocabularyDecisions: VocabularyDecision[];
   mode: 'jev' | 'mock';
 };
 
@@ -53,6 +61,8 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>(STARTER_MESSAGES);
   const [input, setInput] = useState('');
   const [trace, setTrace] = useState<JevDecision[]>([]);
+  const [dynamicWords, setDynamicWords] = useState<string[]>([]);
+  const [vocabularyTrace, setVocabularyTrace] = useState<VocabularyDecision[]>([]);
   const [isThinking, setIsThinking] = useState(false);
   const [mode, setMode] = useState<'checking' | 'jev' | 'mock'>('checking');
   const [error, setError] = useState('');
@@ -85,6 +95,8 @@ export default function Home() {
       }
 
       setMode(payload.mode);
+      setDynamicWords(payload.dynamicWords);
+      setVocabularyTrace(payload.vocabularyDecisions);
       for (let i = 0; i < payload.decisions.length; i += 1) {
         await new Promise((resolve) => setTimeout(resolve, 45));
         setTrace(payload.decisions.slice(0, i + 1));
@@ -126,12 +138,17 @@ export default function Home() {
           throw new Error('message must be a non-empty string of at most 500 characters');
         }
         const reply = await sendMessage(message);
-        return { reply, mode, vocabularySize: APPROVED_WORDS.length };
+        return {
+          reply,
+          mode,
+          baseVocabularySize: APPROVED_WORDS.length,
+          conversationWords: dynamicWords,
+        };
       },
     }, { signal: lifecycle.signal })).catch(() => undefined);
 
     return () => lifecycle.abort();
-  }, [isThinking, mode, sendMessage]);
+  }, [dynamicWords, isThinking, mode, sendMessage]);
 
   function onSubmit(event: BaseSyntheticEvent) {
     event.preventDefault();
@@ -141,6 +158,8 @@ export default function Home() {
   function reset() {
     setMessages(STARTER_MESSAGES);
     setTrace([]);
+    setDynamicWords([]);
+    setVocabularyTrace([]);
     setInput('');
     setError('');
   }
@@ -231,9 +250,22 @@ export default function Home() {
             <span className="pulse-dot" aria-label="Jev connection active" />
           </div>
           <div className="explain-card">
-            <code>state + choice → word</code>
-            <p>Each step sends the conversation and words-so-far as state. Jev may choose exactly one approved word—or <b>END</b>.</p>
+            <code>prompt → noul → vocab<br />state + choice → word</code>
+            <p>Jev first admits useful prompt terms into this chat’s vocabulary. Numbers always enter. Then each step chooses one word—or <b>END</b>.</p>
           </div>
+
+          <section className="vocabulary-section vocabulary-section--dynamic">
+            <div className="section-title"><h3>Words from this chat</h3><span>{dynamicWords.length} added</span></div>
+            {vocabularyTrace.length ? (
+              <div className="word-cloud word-cloud--dynamic">
+                {vocabularyTrace.map(({ word, probability, accepted, source }) => (
+                  <span className={accepted ? 'accepted' : 'rejected'} key={word}>
+                    {word}<small>{source === 'number' ? 'number' : `${Math.round(probability * 100)}%`}</small>
+                  </span>
+                ))}
+              </div>
+            ) : <p className="vocabulary-empty">New names, terms, and numbers will appear here.</p>}
+          </section>
 
           <section className="trace-section">
             <div className="section-title"><h3>Latest trace</h3><span>{trace.length} calls</span></div>

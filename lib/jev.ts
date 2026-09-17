@@ -18,6 +18,16 @@ export const APPROVED_WORDS = [
   'curious', 'true', 'real', 'pretend',
   'am', 'are', 'it', 'this', 'you', 'me', 'my', 'your', 'we', 'could',
   'will', 'only', 'from', 'with', 'for', 'about', 'like',
+  'a', 'an', 'the', 'of', 'on', 'at', 'as', 'or', 'than', 'same',
+  'different', 'better', 'best', 'most', 'who', 'which', 'where', 'when',
+  'how', 'person', 'name', 'looks', 'handsome', 'magic', 'new', 'old',
+  'much', 'really', 'also', 'does', 'did', 'has', 'had', 'was', 'were',
+  'be', 'been', 'get', 'got', 'see', 'look', 'come', 'go', 'give', 'take',
+  'zero', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine',
+  'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen',
+  'seventeen', 'eighteen', 'nineteen', 'twenty', 'hundred', 'thousand',
+  '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12',
+  '13', '14', '15', '16', '17', '18', '19', '20',
 ] as const;
 
 export const END_CHOICE = 'end';
@@ -29,6 +39,7 @@ export type JevChoiceRequest = {
   state: {
     conversation: Message[];
     words_so_far: string[];
+    conversation_vocabulary: string[];
   };
   model: 'jev-latest';
   questions: {
@@ -47,15 +58,85 @@ export type JevDecision = {
   confidence: number;
 };
 
+export type VocabularyDecision = {
+  word: string;
+  probability: number;
+  accepted: boolean;
+  source: 'jev' | 'number' | 'mock';
+};
+
+const BASE_WORDS = new Set<string>(APPROVED_WORDS);
+const TOKEN_PATTERN = /\d+(?:[.,]\d+)*|[\p{L}\p{N}]+(?:['’-][\p{L}\p{N}]+)*/gu;
+
+function normalizeCandidate(word: string) {
+  return word.toLocaleLowerCase().replaceAll('’', "'");
+}
+
+export function findDynamicCandidates(conversation: Message[]) {
+  const candidates: string[] = [];
+  const seen = new Set<string>();
+
+  for (const message of conversation.slice(-12)) {
+    if (message.role !== 'user') continue;
+    for (const match of message.text.matchAll(TOKEN_PATTERN)) {
+      const word = normalizeCandidate(match[0]);
+      if (
+        word.length > 24
+        || BASE_WORDS.has(word)
+        || word === END_CHOICE
+        || seen.has(word)
+      ) continue;
+      seen.add(word);
+      candidates.push(word);
+    }
+  }
+
+  return candidates.slice(-24);
+}
+
+export function isNumericCandidate(word: string) {
+  return /^\d+(?:[.,]\d+)*$/.test(word);
+}
+
+export function buildVocabularyRequest(conversation: Message[], candidates: string[]) {
+  const questions = Object.fromEntries(candidates.map((word, index) => [
+    `word_${index}`,
+    {
+      type: 'noul' as const,
+      instructions: [
+        `Should the exact candidate word \`${word}\` be added to Grug's temporary conversation vocabulary?`,
+        'Answer yes when it is a name, specialized term, quoted word, topic, object, or descriptor that helps answer the latest user message.',
+        'Answer no when it is an accidental fragment, meaningless text, or irrelevant to answering.',
+      ].join(' '),
+      criteria: {
+        true: `Grug may need to say the exact word \`${word}\` in this conversation.`,
+        false: `Grug does not need the exact word \`${word}\` to answer.`,
+      },
+    },
+  ]));
+
+  return {
+    state: {
+      conversation: conversation.slice(-8),
+      candidate_words: candidates,
+      purpose: 'Choose useful words from the user conversation to temporarily expand Grug vocabulary.',
+    },
+    model: 'jev-latest' as const,
+    questions,
+  };
+}
+
 export function buildNextWordRequest(
   conversation: Message[],
   wordsSoFar: string[],
+  dynamicWords: string[] = [],
 ): JevChoiceRequest {
   const recentWords = new Set(wordsSoFar.slice(-3));
   const wordCounts = new Map<string, number>();
   wordsSoFar.forEach((word) => wordCounts.set(word, (wordCounts.get(word) ?? 0) + 1));
+  const availableWords = [...new Set<string>([...APPROVED_WORDS, ...dynamicWords])];
   const criteria = Object.fromEntries([
-    ...APPROVED_WORDS
+    ...availableWords
       .filter((word) => !recentWords.has(word) && (wordCounts.get(word) ?? 0) < 2)
       .map((word) => [word, null] as const),
     [END_CHOICE, 'The reply is complete and should stop now.'],
@@ -65,6 +146,7 @@ export function buildNextWordRequest(
     state: {
       conversation: conversation.slice(-8),
       words_so_far: [...wordsSoFar],
+      conversation_vocabulary: [...dynamicWords],
     },
     model: 'jev-latest',
     questions: {
@@ -74,6 +156,7 @@ export function buildNextWordRequest(
           'Choose exactly one next word for the assistant named Grug.',
           'Grug gives useful, direct answers using primitive caveman grammar.',
           'Continue naturally from `words_so_far` and answer the latest user message in `conversation`.',
+          'Words in `conversation_vocabulary` came directly from the user conversation and may be used exactly as written.',
           'The three most recent words and any word already used twice are unavailable to prevent repetition loops.',
           'Do not claim current or future facts that are not present in the conversation; say Grug does not know and suggest checking.',
           'Choose `end` when the reply is complete. Prefer a short reply and choose `end` by 18 words.',

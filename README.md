@@ -71,6 +71,8 @@ npm run build
 - Keeps the approved vocabulary and request builder in [`lib/jev.ts`](./lib/jev.ts).
 - Sends one Jev Choice request per word through the server-only `/api/chat` route.
 - Carries the conversation and `words_so_far` forward as structured state.
+- Extracts candidate names, numbers, and terms from user messages, then batches one Jev Noul judgment per non-numeric candidate to decide which words join the conversation vocabulary.
+- Always admits numeric tokens and displays accepted and rejected conversation words in the inspector.
 - Stops when Jev chooses the dedicated `end` control option or after 18 words.
 - Withholds the three most recent words and words already used twice to prevent repetition loops.
 - Validates every returned choice and retries documented `429` and `529` failures.
