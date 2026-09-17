@@ -4,13 +4,9 @@ import { type BaseSyntheticEvent, useCallback, useEffect, useRef, useState } fro
 import { ArrowUp, RotateCcw, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
 import {
   APPROVED_WORDS,
-  ASCII_CHARACTERS,
   END_CHOICE,
-  displayCharacter,
-  type GenerationMode,
   type JevDecision,
   type Message,
   type VocabularyDecision,
@@ -21,7 +17,6 @@ type ChatResponse = {
   decisions: JevDecision[];
   dynamicWords: string[];
   vocabularyDecisions: VocabularyDecision[];
-  generationMode: GenerationMode;
   mode: 'jev' | 'mock';
 };
 
@@ -51,7 +46,7 @@ function ProbabilityBar({ decision }: { decision: JevDecision }) {
         {top.map(([word, probability]) => (
           <div className="probability" key={word}>
             <span className={word === decision.choice ? 'selected' : ''}>
-              {word === END_CHOICE ? 'END' : displayCharacter(word)}
+              {word === END_CHOICE ? 'END' : word}
             </span>
             <i><b style={{ width: `${Math.max(probability * 100, 2)}%` }} /></i>
             <em>{Math.round(probability * 100)}%</em>
@@ -68,7 +63,6 @@ export default function Home() {
   const [trace, setTrace] = useState<JevDecision[]>([]);
   const [dynamicWords, setDynamicWords] = useState<string[]>([]);
   const [vocabularyTrace, setVocabularyTrace] = useState<VocabularyDecision[]>([]);
-  const [abcMode, setAbcMode] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [mode, setMode] = useState<'checking' | 'jev' | 'mock'>('checking');
   const [error, setError] = useState('');
@@ -93,7 +87,7 @@ export default function Home() {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: nextMessages, mode: abcMode ? 'abc' : 'word' }),
+        body: JSON.stringify({ messages: nextMessages, mode: 'word' }),
       });
       const payload = await response.json() as ChatResponse | { error?: string };
       if (!response.ok || !('text' in payload)) {
@@ -117,7 +111,7 @@ export default function Home() {
     } finally {
       setIsThinking(false);
     }
-  }, [abcMode, isThinking, messages]);
+  }, [isThinking, messages]);
 
   useEffect(() => {
     const context = document.modelContext;
@@ -149,13 +143,13 @@ export default function Home() {
           mode,
           baseVocabularySize: APPROVED_WORDS.length,
           conversationWords: dynamicWords,
-          generationMode: abcMode ? 'abc' : 'word',
+          generationMode: 'word',
         };
       },
     }, { signal: lifecycle.signal })).catch(() => undefined);
 
     return () => lifecycle.abort();
-  }, [abcMode, dynamicWords, isThinking, mode, sendMessage]);
+  }, [dynamicWords, isThinking, mode, sendMessage]);
 
   function onSubmit(event: BaseSyntheticEvent) {
     event.preventDefault();
@@ -246,22 +240,6 @@ export default function Home() {
             </form>
             <div className="composer-meta">
               <span>{mode === 'mock' ? 'Mock fallback · API key not configured' : 'Jev API · key stays server-side'}</span>
-              <label className="mode-toggle" htmlFor="abc-mode">
-                <Switch
-                  aria-label="Toggle ABC character mode"
-                  checked={abcMode}
-                  disabled={isThinking}
-                  id="abc-mode"
-                  onCheckedChange={(checked) => {
-                    setAbcMode(checked);
-                    setTrace([]);
-                    setDynamicWords([]);
-                    setVocabularyTrace([]);
-                  }}
-                  size="sm"
-                />
-                <span>ABC mode</span>
-              </label>
               <button onClick={reset} type="button"><RotateCcw size={13} /> reset</button>
             </div>
           </div>
@@ -273,14 +251,10 @@ export default function Home() {
             <span className="pulse-dot" aria-label="Jev connection active" />
           </div>
           <div className="explain-card">
-            {abcMode ? (
-              <><code>state + choice → character</code><p>Each step chooses a lowercase letter, digit, apostrophe, space, question mark, or period. <b>END</b> is the end-of-transmission control and is not printed.</p></>
-            ) : (
-              <><code>prompt → noul → vocab<br />groups → finalists → word</code><p>Jev first admits useful prompt terms. Then every eligible core word enters a grouped tournament, and Jev chooses among the finalists—or <b>END</b>.</p></>
-            )}
+            <code>prompt → noul → vocab<br />groups → finalists → word</code><p>Jev first admits useful prompt terms. Then every eligible core word enters a grouped tournament, and Jev chooses among the finalists—or <b>END</b>.</p>
           </div>
 
-          {!abcMode && <section className="vocabulary-section vocabulary-section--dynamic">
+          <section className="vocabulary-section vocabulary-section--dynamic">
             <div className="section-title"><h3>Words from this chat</h3><span>{dynamicWords.length} added</span></div>
             {vocabularyTrace.length ? (
               <div className="word-cloud word-cloud--dynamic">
@@ -291,7 +265,7 @@ export default function Home() {
                 ))}
               </div>
             ) : <p className="vocabulary-empty">New names, terms, and numbers will appear here.</p>}
-          </section>}
+          </section>
 
           <section className="trace-section">
             <div className="section-title"><h3>Latest trace</h3><span>{trace.length} choices</span></div>
@@ -306,14 +280,13 @@ export default function Home() {
 
           <section className="vocabulary-section">
             <div className="section-title">
-              <h3>{abcMode ? 'Approved characters' : 'Approved words'}</h3>
-              <span>{abcMode ? `${ASCII_CHARACTERS.length} + END` : APPROVED_WORDS.length}</span>
+              <h3>Approved words</h3>
+              <span>{APPROVED_WORDS.length}</span>
             </div>
-            <div className={`word-cloud${abcMode ? ' character-cloud' : ''}`}>
-              {(abcMode ? ASCII_CHARACTERS : APPROVED_WORDS).map((item) => (
-                <span key={abcMode ? item.charCodeAt(0) : item}>{abcMode ? displayCharacter(item) : item}</span>
+            <div className="word-cloud">
+              {APPROVED_WORDS.map((item) => (
+                <span key={item}>{item}</span>
               ))}
-              {abcMode && <span className="end-character">END</span>}
             </div>
           </section>
         </aside>

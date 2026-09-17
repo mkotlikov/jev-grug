@@ -2,20 +2,17 @@ import { NextResponse } from 'next/server';
 import {
   END_CHOICE,
   NONE_CHOICE,
-  MAX_CHARACTER_REPLY_LENGTH,
   MAX_REPLY_WORDS,
-  buildNextCharacterRequest,
   buildNextWordFinalRequest,
   buildNextWordTournamentRequest,
   buildVocabularyRequest,
   findDynamicCandidates,
   isNumericCandidate,
-  type GenerationMode,
   type JevDecision,
   type Message,
   type VocabularyDecision,
 } from '@/lib/jev';
-import { createMockCharacterReply, createMockReply } from '@/lib/mock-jev';
+import { createMockReply } from '@/lib/mock-jev';
 
 type ChoiceAnswer = {
   type: 'choice';
@@ -78,25 +75,15 @@ export async function POST(request: Request) {
     if (!validMessages(body.messages)) {
       return NextResponse.json({ error: 'Send 1–20 valid chat messages.' }, { status: 400 });
     }
-    if (body.mode !== undefined && body.mode !== 'word' && body.mode !== 'abc') {
-      return NextResponse.json({ error: 'Mode must be word or abc.' }, { status: 400 });
+    if (body.mode !== undefined && body.mode !== 'word') {
+      return NextResponse.json({ error: 'ABC mode is disabled.' }, { status: 400 });
     }
 
-    const generationMode: GenerationMode = body.mode === 'abc' ? 'abc' : 'word';
+    const generationMode = 'word' as const;
     const apiKey = process.env.TYPESAFE_API_KEY;
     const candidates = findDynamicCandidates(body.messages);
     if (!apiKey) {
       const lastPrompt = body.messages.at(-1)?.text ?? '';
-      if (generationMode === 'abc') {
-        const result = createMockCharacterReply(lastPrompt, body.messages);
-        return NextResponse.json({
-          ...result,
-          dynamicWords: [],
-          vocabularyDecisions: [],
-          generationMode,
-          mode: 'mock' as const,
-        });
-      }
       const vocabularyDecisions: VocabularyDecision[] = candidates.map((word) => ({
         word,
         probability: 1,
@@ -111,40 +98,6 @@ export async function POST(request: Request) {
         vocabularyDecisions,
         generationMode,
         mode: 'mock' as const,
-      });
-    }
-
-    if (generationMode === 'abc') {
-      const characters: string[] = [];
-      const decisions: JevDecision[] = [];
-
-      for (let step = 1; step <= MAX_CHARACTER_REPLY_LENGTH; step += 1) {
-        const jevRequest = buildNextCharacterRequest(body.messages, characters);
-        const allowed = new Set(Object.keys(jevRequest.questions.next_word.criteria));
-        const response = await askJev(apiKey, jevRequest);
-        const answer = response.answers?.next_word;
-        if (!answer || answer.type !== 'choice' || !allowed.has(answer.choice)) {
-          throw new Error('Jev returned an invalid next-character choice.');
-        }
-        decisions.push({
-          step,
-          choice: answer.choice,
-          probabilities: answer.probabilities,
-          confidence: answer.confidence,
-        });
-        if (answer.choice === END_CHOICE) break;
-        characters.push(answer.choice);
-      }
-
-      const completed = decisions.at(-1)?.choice === END_CHOICE;
-      const text = characters.length ? `${characters.join('')}${completed ? '' : '…'}` : '…';
-      return NextResponse.json({
-        text,
-        decisions,
-        dynamicWords: [],
-        vocabularyDecisions: [],
-        generationMode,
-        mode: 'jev' as const,
       });
     }
 
