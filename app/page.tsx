@@ -173,6 +173,10 @@ export default function Home() {
           <span>GRUG.CHAT</span>
         </a>
         <div className="topbar__right">
+          <a className="repo-link" href="https://github.com/mkotlikov/jev-grug" target="_blank" rel="noreferrer">
+            <span aria-hidden="true">&lt;/&gt;</span>
+            GitHub repo
+          </a>
           <span className={`status-pill status-pill--${mode}`}>
             <i /> {mode === 'jev' ? 'live jev' : mode === 'mock' ? 'mock fallback' : 'jev api'}
           </span>

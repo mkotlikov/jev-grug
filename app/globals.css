@@ -60,6 +60,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .brand { display: flex; align-items: center; gap: .7rem; color: #fff; text-decoration: none; font-weight: 850; letter-spacing: -.04em; }
 .brand-mark { width: 34px; height: 34px; display: grid; place-items: center; background: var(--acid); color: #12140f; border-radius: 48% 52% 42% 58%; transform: rotate(-5deg); font-family: var(--font-mono-custom); font-weight: 900; }
 .topbar__right { display: flex; align-items: center; gap: 1.25rem; }
+.repo-link { display: inline-flex; align-items: center; gap: .45rem; padding: .48rem .72rem; border: 1px solid rgba(217,255,85,.45); border-radius: 999px; background: rgba(217,255,85,.1); color: var(--acid); font: 750 .78rem var(--font-mono-custom); text-decoration: none; transition: background .15s ease, border-color .15s ease, color .15s ease; }
+.repo-link:hover { background: var(--acid); border-color: var(--acid); color: #12140f; }
+.repo-link:focus-visible { outline: 2px solid var(--acid); outline-offset: 3px; }
 .status-pill { display: flex; align-items: center; gap: .5rem; border: 1px solid #454938; background: #1b1e17; padding: .42rem .7rem; border-radius: 999px; color: #c8cabd; font: 700 .72rem var(--font-mono-custom); text-transform: uppercase; letter-spacing: .06em; }
 .status-pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--ember); box-shadow: 0 0 0 4px rgba(255,112,67,.12); }
 .status-pill--jev i { background: var(--acid); box-shadow: 0 0 0 4px rgba(217,255,85,.12); }
@@ -156,6 +159,8 @@ footer a { color: #aeb19f; }
 }
 @media (max-width: 560px) {
   .topbar { height: 62px; }
+  .topbar__right { gap: .65rem; }
+  .repo-link { padding: .42rem .58rem; font-size: .7rem; }
   .docs-link { display: none; }
   .chat-panel { padding-top: 2.5rem; }
   .intro h1 { font-size: 3.6rem; }
