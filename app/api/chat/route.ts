@@ -6,6 +6,7 @@ import {
   buildNextWordFinalRequest,
   buildNextWordTournamentRequest,
   buildVocabularyRequest,
+  formatReplyTokens,
   findDynamicCandidates,
   isNumericCandidate,
   type JevDecision,
@@ -173,7 +174,8 @@ export async function POST(request: Request) {
     }
 
     const completed = decisions.at(-1)?.choice === END_CHOICE;
-    const text = words.length ? `${words.join(' ')}${completed ? '.' : '…'}` : '…';
+    const reply = formatReplyTokens(words);
+    const text = reply ? `${reply}${completed ? '' : '…'}` : '…';
     return NextResponse.json({
       text,
       decisions,

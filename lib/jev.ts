@@ -39,6 +39,8 @@ export const APPROVED_WORDS = [...new Set<string>([
 
 export const END_CHOICE = 'end';
 export const NONE_CHOICE = '__none__';
+export const PUNCTUATION_CHOICES = ['.', ',', '?', '!'] as const;
+export const APPROVED_TOKENS = [...APPROVED_WORDS, ...PUNCTUATION_CHOICES];
 export const MAX_REPLY_WORDS = 18;
 export const MAX_WORDS_PER_CHOICE = 249;
 export const MAX_CHARACTER_REPLY_LENGTH = 64;
@@ -121,6 +123,25 @@ export function isNumericCandidate(word: string) {
   return /^\d+(?:[.,]\d+)*$/.test(word);
 }
 
+export function isPunctuationChoice(token: string) {
+  return (PUNCTUATION_CHOICES as readonly string[]).includes(token);
+}
+
+export function formatReplyTokens(tokens: string[]) {
+  return tokens.reduce((reply, token) => {
+    if (isPunctuationChoice(token)) return `${reply}${token}`;
+    return reply ? `${reply} ${token}` : token;
+  }, '');
+}
+
+function choiceCriterion(token: string) {
+  if (token === '.') return 'End a complete statement with a period.';
+  if (token === ',') return 'Add a comma only when the current sentence should continue after a pause.';
+  if (token === '?') return 'End a direct question with a question mark.';
+  if (token === '!') return 'End a strongly emphatic statement with an exclamation mark.';
+  return null;
+}
+
 export function buildVocabularyRequest(conversation: Message[], candidates: string[]) {
   const questions = Object.fromEntries(candidates.map((word, index) => [
     `word_${index}`,
@@ -157,11 +178,11 @@ export function buildNextWordRequest(
   const recentWords = new Set(wordsSoFar.slice(-3));
   const wordCounts = new Map<string, number>();
   wordsSoFar.forEach((word) => wordCounts.set(word, (wordCounts.get(word) ?? 0) + 1));
-  const availableWords = [...new Set<string>([...APPROVED_WORDS, ...dynamicWords])];
+  const availableWords = [...new Set<string>([...APPROVED_TOKENS, ...dynamicWords])];
   const criteria = Object.fromEntries([
     ...availableWords
       .filter((word) => !recentWords.has(word) && (wordCounts.get(word) ?? 0) < 2)
-      .map((word) => [word, null] as const),
+      .map((word) => [word, choiceCriterion(word)] as const),
     [END_CHOICE, 'The reply is complete and should stop now.'],
   ]);
 
@@ -176,11 +197,12 @@ export function buildNextWordRequest(
       next_word: {
         type: 'choice',
         instructions: [
-          'Choose exactly one next word for the assistant named Grug.',
+          'Choose exactly one next token for the assistant named Grug. A token may be a word or punctuation mark.',
           'Grug gives useful, direct answers using primitive caveman grammar.',
           'Continue naturally from `words_so_far` and answer the latest user message in `conversation`.',
           'Words in `conversation_vocabulary` came directly from the user conversation and may be used exactly as written.',
           'The three most recent words and any word already used twice are unavailable to prevent repetition loops.',
+          'Use punctuation as its own token. Do not choose `end` when the reply still needs final punctuation.',
           'Do not claim current or future facts that are not present in the conversation; say Grug does not know and suggest checking.',
           'Choose `end` when the reply is complete. Prefer a short reply and choose `end` by 18 words.',
         ].join(' '),
@@ -194,8 +216,12 @@ function availableReplyWords(wordsSoFar: string[], dynamicWords: string[]) {
   const recentWords = new Set(wordsSoFar.slice(-3));
   const wordCounts = new Map<string, number>();
   wordsSoFar.forEach((word) => wordCounts.set(word, (wordCounts.get(word) ?? 0) + 1));
-  return [...new Set<string>([...APPROVED_WORDS, ...dynamicWords])]
+  const lastToken = wordsSoFar.at(-1);
+  return [...new Set<string>([...APPROVED_TOKENS, ...dynamicWords])]
     .filter((word) => word !== END_CHOICE && word !== NONE_CHOICE)
+    .filter((word) => !isPunctuationChoice(word) || (
+      wordsSoFar.length > 0 && !isPunctuationChoice(lastToken ?? '')
+    ))
     .filter((word) => !recentWords.has(word) && (wordCounts.get(word) ?? 0) < 2);
 }
 
@@ -214,13 +240,14 @@ export function buildNextWordTournamentRequest(
     {
       type: 'choice' as const,
       instructions: [
-        'Choose the best next word from this candidate group for the assistant named Grug.',
+        'Choose the best next token from this candidate group for the assistant named Grug. A token may be a word or punctuation mark.',
         'Grug gives a useful, direct answer with primitive caveman grammar.',
         'Continue naturally from `words_so_far` and answer the latest user message in `conversation`.',
+        'Choose punctuation when it is the natural next token. Do not choose a related word when the reply needs punctuation.',
         `Choose ${NONE_CHOICE} when no word in this group is a good continuation.`,
       ].join(' '),
       criteria: Object.fromEntries([
-        ...group.map((word) => [word, null] as const),
+        ...group.map((word) => [word, choiceCriterion(word)] as const),
         [NONE_CHOICE, 'No word in this group is a useful next word.'],
       ]),
     },
@@ -254,14 +281,15 @@ export function buildNextWordFinalRequest(
       next_word: {
         type: 'choice',
         instructions: [
-          'Choose the single best next word for the assistant named Grug from the tournament finalists.',
+          'Choose the single best next token for the assistant named Grug from the tournament finalists.',
           'Grug gives useful, direct answers using primitive caveman grammar.',
           'Continue naturally from `words_so_far` and answer the latest user message in `conversation`.',
+          'Punctuation marks are output tokens. Prefer appropriate final punctuation before choosing `end`.',
           'Choose `end` when the reply is complete. Prefer a short reply and choose `end` by 18 words.',
         ].join(' '),
         criteria: Object.fromEntries([
-          ...finalists.map((word) => [word, null] as const),
-          [END_CHOICE, 'The reply is complete and should stop now.'],
+          ...finalists.map((word) => [word, choiceCriterion(word)] as const),
+          [END_CHOICE, 'The reply is complete, already has appropriate punctuation, and should stop now.'],
         ]),
       },
     },

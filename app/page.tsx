@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
   APPROVED_WORDS,
+  PUNCTUATION_CHOICES,
   END_CHOICE,
   type JevDecision,
   type Message,
@@ -284,12 +285,15 @@ export default function Home() {
 
           <section className="vocabulary-section">
             <div className="section-title">
-              <h3>Approved words</h3>
-              <span>{APPROVED_WORDS.length}</span>
+              <h3>Approved tokens</h3>
+              <span>{APPROVED_WORDS.length + PUNCTUATION_CHOICES.length}</span>
             </div>
             <div className="word-cloud">
               {APPROVED_WORDS.map((item) => (
                 <span key={item}>{item}</span>
+              ))}
+              {PUNCTUATION_CHOICES.map((item) => (
+                <span className="punctuation-token" key={item}>{item}</span>
               ))}
             </div>
           </section>

@@ -1,5 +1,5 @@
 import {
-  APPROVED_WORDS,
+  APPROVED_TOKENS,
   ASCII_CHARACTERS,
   END_CHOICE,
   type JevDecision,
@@ -60,11 +60,11 @@ function hash(value: string) {
   return Math.abs(result >>> 0);
 }
 
-function cleanToken(token: string) {
-  return token.toLowerCase().replace(/[^\p{L}\p{N}'-]/gu, '');
+function replyTokens(reply: string) {
+  return reply.toLowerCase().match(/\d+(?:[.,]\d+)*|[\p{L}\p{N}]+(?:['’-][\p{L}\p{N}]+)*|[.,?!]/gu) ?? [];
 }
 
-function makeDistribution(choice: string, seed: number, pool: readonly string[] = APPROVED_WORDS) {
+function makeDistribution(choice: string, seed: number, pool: readonly string[] = APPROVED_TOKENS) {
   const distractors = pool
     .filter((word) => word !== choice)
     .sort((a, b) => hash(`${seed}-${a}`) - hash(`${seed}-${b}`))
@@ -84,9 +84,9 @@ export function createMockReply(prompt: string, history: Message[], dynamicWords
   const pattern = PATTERNS.find((entry) => entry.when.test(prompt)) ?? PATTERNS[PATTERNS.length - 1];
   const seed = hash(`${prompt}:${history.length}`);
   const reply = pattern.replies[seed % pattern.replies.length];
-  const tokens = reply.split(/\s+/).map(cleanToken).filter(Boolean);
+  const tokens = replyTokens(reply);
   const choices = [...tokens, END_CHOICE];
-  const allowed = new Set<string>([...APPROVED_WORDS, ...dynamicWords]);
+  const allowed = new Set<string>([...APPROVED_TOKENS, ...dynamicWords]);
   const unknown = tokens.filter((token) => !allowed.has(token));
   if (unknown.length) throw new Error(`Mock reply used unapproved words: ${unknown.join(', ')}`);
 
