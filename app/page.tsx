@@ -293,7 +293,12 @@ export default function Home() {
       </section>
 
       <footer>
-        <p>Built by Michael Kotlikov</p>
+        <p>
+          Built by Michael Kotlikov ·{" "}
+          <a href="https://github.com/mkotlikov/jev-grug" target="_blank" rel="noreferrer">
+            GitHub repo ↗
+          </a>
+        </p>
         <p>Jev is a product of TypeSafe AI. This independent demo is not affiliated with TypeSafe.</p>
       </footer>
     </main>

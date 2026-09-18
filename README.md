@@ -2,6 +2,8 @@
 
 > tiny vocabulary. big thought.
 
+[Try the live demo](https://jev-grug-chat.mkotlikov.chatgpt.site/)
+
 [TypeSafe says Jev isn't an LLM](https://docs.typesafe.ai/concepts/system-one). Let's talk to it anyway. Grug is a tiny cave-chat experiment that makes Jev hold a conversation by repeatedly choosing its next word from a compact vocabulary. What could grug wrong?
 
 The demo now connects to the real Jev API when `TYPESAFE_API_KEY` is configured. Without a key it falls back to a deterministic mock, so contributors can still run the interface immediately.
